@@ -29,28 +29,22 @@ func RunServer(
 	}
 
 	var server TtrpcServer
-	var serveFunc = serveNewPayload
 	// Create the server based on the requested ttrpc version.
 	switch version {
 	case "1.0.2":
 		server, err = v1_0_2.NewServer()
-		serveFunc = serveOldPayload
 		break
 	case "1.1.0":
 		server, err = v1_1_0.NewServer()
-		serveFunc = serveOldPayload
 		break
 	case "1.2.0":
 		server, err = v1_2_0.NewServer()
-		serveFunc = serveNewPayload
 		break
 	case "1.2.4":
 		server, err = v1_2_4.NewServer()
-		serveFunc = serveNewPayload
 		break
 	case "latest":
 		server, err = latest.NewServer()
-		serveFunc = serveNewPayload
 		break
 	default:
 		return fmt.Errorf("invalid version of ttrpc requested for stress testing")
@@ -64,7 +58,6 @@ func RunServer(
 	if err = server.Register(
 		svc,
 		method,
-		serveFunc,
 	); err != nil {
 		return fmt.Errorf("failed registering service: %w", err)
 	}
@@ -82,26 +75,4 @@ func RunServer(
 	}
 
 	return nil
-}
-
-func serveOldPayload(_ context.Context, unmarshal func(interface{}) error) (interface{}, error) {
-	req := &ProtogogoPayload{}
-	// Unmarshal the request payload.
-	if err := unmarshal(req); err != nil {
-		log.Fatalf("failed unmarshalling request: %s", err)
-	}
-	id := req.Value
-	// Return the same payload as the response.
-	return &ProtogogoPayload{Value: id}, nil
-}
-
-func serveNewPayload(_ context.Context, unmarshal func(interface{}) error) (interface{}, error) {
-	req := &ProtogoPayload{}
-	// Unmarshal the request payload.
-	if err := unmarshal(req); err != nil {
-		log.Fatalf("failed unmarshalling request: %s", err)
-	}
-	id := req.Value
-	// Return the same payload as the response.
-	return &ProtogoPayload{Value: id}, nil
 }

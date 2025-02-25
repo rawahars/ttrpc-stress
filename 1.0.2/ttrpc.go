@@ -2,11 +2,16 @@ package v1_0_2
 
 import (
 	"context"
-	"fmt"
+	"github.com/gogo/protobuf/proto"
+	"log"
 	"net"
+
+	"github.com/rawahars/ttrpc-stress/v1_1_0/protogogo"
 
 	"github.com/containerd/ttrpc"
 )
+
+type payload = protogogo.Payload
 
 type Client struct {
 	client *ttrpc.Client
@@ -18,8 +23,17 @@ func NewClient(conn net.Conn) *Client {
 	}
 }
 
-func (c *Client) Call(ctx context.Context, svc string, method string, req, resp interface{}) error {
-	return c.client.Call(ctx, svc, method, req, resp)
+func (c *Client) Call(ctx context.Context, svc string, method string, reqId uint32) (uint32, error) {
+	req := &payload{Value: reqId}
+	resp := &payload{}
+	var reqMsg proto.Message = req
+	var respMsg proto.Message = resp
+	log.Printf("type is: %T\n", reqMsg)
+	err := c.client.Call(ctx, svc, method, reqMsg, respMsg)
+	if err != nil {
+		return 0, err
+	}
+	return resp.Value, nil
 }
 
 func (c *Client) Close() error {
@@ -43,16 +57,18 @@ func NewServer() (*Server, error) {
 func (s *Server) Register(
 	name string,
 	method string,
-	unmarshal func(context.Context, func(interface{}) error) (interface{}, error),
 ) error {
-	if unmarshal == nil {
-		return fmt.Errorf("unmarshal function is required")
-	}
-
 	s.server.Register(name, map[string]ttrpc.Method{
-		method: unmarshal,
+		method: func(ctx context.Context, unmarshal func(interface{}) error) (interface{}, error) {
+			req := &payload{}
+			// Unmarshal the request payload.
+			if err := unmarshal(req); err != nil {
+				log.Fatalf("failed unmarshalling request: %s", err)
+			}
+			// Return the same payload as the response.
+			return &payload{Value: req.Value}, nil
+		},
 	})
-
 	return nil
 }
 

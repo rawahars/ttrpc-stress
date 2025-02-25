@@ -51,28 +51,22 @@ dialLoop: // Labeled loop
 	}
 
 	var client TtrpcClient
-	var sendFunc = sendNewPayload
 	// Determine the client and the send function based on the requested ttrpc version.
 	switch version {
 	case "1.0.2":
 		client = v1_0_2.NewClient(conn)
-		sendFunc = sendOldPayload
 		break
 	case "1.1.0":
 		client = v1_1_0.NewClient(conn)
-		sendFunc = sendOldPayload
 		break
 	case "1.2.0":
 		client = v1_2_0.NewClient(conn)
-		sendFunc = sendNewPayload
 		break
 	case "1.2.4":
 		client = v1_2_4.NewClient(conn)
-		sendFunc = sendNewPayload
 		break
 	case "latest":
 		client = latest.NewClient(conn)
-		sendFunc = sendNewPayload
 		break
 	default:
 		return fmt.Errorf("invalid version of ttrpc requested for stress testing")
@@ -96,7 +90,7 @@ dialLoop: // Labeled loop
 						return nil
 					}
 					// Send the request and handle any errors.
-					if err = sendFunc(ctx, client, svc, method, uint32(i)); err != nil {
+					if err = sendPayload(ctx, client, svc, method, uint32(i)); err != nil {
 						cancel() // stop all workers.
 						return err
 					}
@@ -123,47 +117,20 @@ dialLoop: // Labeled loop
 	return nil
 }
 
-// sendOldPayload sends a request to the server and verifies the response.
-func sendOldPayload(
+// sendPayload sends a request to the server and verifies the response.
+func sendPayload(
 	ctx context.Context,
 	client TtrpcClient,
 	svc string,
 	method string,
 	id uint32,
 ) error {
-	req := &ProtogogoPayload{Value: id}
-	resp := &ProtogogoPayload{}
-
 	// Call the server method and handle any errors.
-	if err := client.Call(ctx, svc, method, req, resp); err != nil {
+	ret, err := client.Call(ctx, svc, method, id)
+	if err != nil {
 		return err
 	}
 
-	ret := resp.Value
-	// Verify the response matches the request.
-	if ret != id {
-		return fmt.Errorf("expected return value %d but got %d", id, ret)
-	}
-	return nil
-}
-
-// sendNewPayload sends a request to the server and verifies the response.
-func sendNewPayload(
-	ctx context.Context,
-	client TtrpcClient,
-	svc string,
-	method string,
-	id uint32,
-) error {
-	req := &ProtogoPayload{Value: id}
-	resp := &ProtogoPayload{}
-
-	// Call the server method and handle any errors.
-	if err := client.Call(ctx, svc, method, req, resp); err != nil {
-		return err
-	}
-
-	ret := resp.Value
 	// Verify the response matches the request.
 	if ret != id {
 		return fmt.Errorf("expected return value %d but got %d", id, ret)
